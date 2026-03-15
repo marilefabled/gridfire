@@ -622,13 +622,13 @@
 
   /* =============================== BATTLEFIELD =============================== */
   .battlefield {
-    flex: 0 0 55%;
+    flex: 0 0 35%;
     position: relative;
     overflow: hidden;
     background:
       radial-gradient(ellipse at 10% 50%, rgba(100, 40, 40, 0.08) 0%, transparent 60%),
       var(--panel);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
   }
 
   /* Subtle grid lines */
