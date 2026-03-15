@@ -177,7 +177,7 @@ export function fireProjectiles(bf, projectileList) {
         id: nextId++,
         x: 12,
         y: 50 + spread,
-        speed: isBlast ? 2 : 1.2,
+        speed: isBlast ? 2.5 : 1.8,
         element: p.element,
         damage,
         isBlast,
