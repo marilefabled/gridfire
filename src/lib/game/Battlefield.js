@@ -111,7 +111,7 @@ export function updateBattlefield(bf, dt) {
     // Check collision with enemies
     for (const e of bf.enemies) {
       const dist = Math.hypot(p.x - e.x, p.y - e.y);
-      if (dist < (e.size / 2 + p.size / 2) * 0.15) {
+      if (dist < (e.size / 2 + p.size / 2) * 0.2) {
         applyDamage(bf, e, p.damage, p.element, events);
         spawnHitParticles(bf, e.x, e.y, p.element, 6);
         bf.projectiles.splice(i, 1);
