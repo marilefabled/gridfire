@@ -626,11 +626,14 @@
     border-bottom: 2px solid var(--border);
   }
 
-  /* Subtle grid lines */
-  .bf-gridlines { position: absolute; inset: 0; pointer-events: none; }
-  .bf-gridline-v, .bf-gridline-h { position: absolute; background: var(--border); }
-  .bf-gridline-v { width: 1px; top: 0; bottom: 0; opacity: 0.3; }
-  .bf-gridline-h { height: 1px; left: 0; right: 0; opacity: 0.3; }
+  /* Lane view */
+  .bf-lane { position: absolute; inset: 0; pointer-events: none; }
+  .bf-ground {
+    position: absolute; left: 0; right: 0; top: 70%;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), rgba(255,255,255,0.06), var(--border));
+    opacity: 0.5;
+  }
 
   /* Player */
   .player {
