@@ -386,16 +386,11 @@
     </div>
   {/if}
 
-  <!-- Battlefield -->
+  <!-- Battlefield — side-scroll lane view -->
   <div class="battlefield">
-    <!-- Grid lines -->
-    <div class="bf-gridlines">
-      {#each Array(8) as _, i}
-        <div class="bf-gridline-v" style="left: {(i + 1) * 10}%"></div>
-      {/each}
-      {#each Array(5) as _, i}
-        <div class="bf-gridline-h" style="top: {(i + 1) * 16.6}%"></div>
-      {/each}
+    <!-- Ground line and lane markers -->
+    <div class="bf-lane">
+      <div class="bf-ground"></div>
     </div>
 
     <!-- Player -->
