@@ -269,7 +269,7 @@ export function getWaveConfig(waveNum) {
     if (waveNum >= 5 && roll > 0.85) type = 'tank';
     if (waveNum >= 7 && roll > 0.9) type = 'shielded';
 
-    configs.push({ type, delay: i * (0.8 - Math.min(base * 0.03, 0.5)) });
+    configs.push({ type, delay: i * (1.5 - Math.min(base * 0.04, 0.8)) });
   }
 
   return configs;
