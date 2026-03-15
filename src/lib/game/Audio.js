@@ -145,6 +145,77 @@ class Audio {
       this._tone(f, 0.3, 'sawtooth', 0.1 - i * 0.015, i * 0.15);
     });
     this._noise(0.3, 0.04, 0.3);
+    this.stopPulse();
+  }
+
+  weaknessHit() {
+    this._tone(880, 0.08, 'sine', 0.15);
+    this._tone(1100, 0.06, 'sine', 0.12, 0.04);
+    this._tone(1320, 0.1, 'sine', 0.08, 0.08);
+  }
+
+  crit() {
+    this._tone(1500, 0.04, 'square', 0.12);
+    this._noise(0.03, 0.06, 0.02);
+    this._tone(2000, 0.06, 'sine', 0.08, 0.04);
+  }
+
+  bossAppear() {
+    this._tone(80, 0.6, 'sawtooth', 0.15);
+    this._tone(60, 0.8, 'sawtooth', 0.1, 0.2);
+    this._noise(0.3, 0.06, 0.1);
+    this._tone(120, 0.3, 'square', 0.08, 0.5);
+  }
+
+  bossKill() {
+    const notes = [262, 330, 392, 523, 659, 784];
+    notes.forEach((f, i) => {
+      this._tone(f, 0.25, 'sine', 0.14 - i * 0.015, i * 0.1);
+    });
+    this._noise(0.3, 0.06, 0.2);
+  }
+
+  perkSelect() {
+    this._tone(523, 0.08, 'sine', 0.12);
+    this._tone(659, 0.08, 'sine', 0.1, 0.06);
+    this._tone(784, 0.12, 'sine', 0.08, 0.12);
+  }
+
+  // Background music pulse — looping bass
+  _pulseOsc = null;
+  _pulseGain = null;
+
+  startPulse(freq = 45) {
+    if (!this._ensure()) return;
+    if (this._pulseOsc) this.stopPulse();
+    this._pulseOsc = this.ctx.createOscillator();
+    this._pulseGain = this.ctx.createGain();
+    this._pulseOsc.type = 'sine';
+    this._pulseOsc.frequency.value = freq;
+    this._pulseGain.gain.value = 0;
+    // Fade in
+    this._pulseGain.gain.linearRampToValueAtTime(0.06, this.ctx.currentTime + 2);
+    this._pulseOsc.connect(this._pulseGain);
+    this._pulseGain.connect(this.gain);
+    this._pulseOsc.start();
+  }
+
+  updatePulse(freq) {
+    if (this._pulseOsc) {
+      this._pulseOsc.frequency.linearRampToValueAtTime(freq, this.ctx.currentTime + 0.5);
+    }
+  }
+
+  stopPulse() {
+    if (this._pulseOsc) {
+      try {
+        this._pulseGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+        const osc = this._pulseOsc;
+        setTimeout(() => { try { osc.stop(); } catch {} }, 600);
+      } catch {}
+      this._pulseOsc = null;
+      this._pulseGain = null;
+    }
   }
 }
 
