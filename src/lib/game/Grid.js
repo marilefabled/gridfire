@@ -194,19 +194,19 @@ export function matchesToProjectiles(matches) {
   for (const m of matches) {
     switch (m.shape) {
       case 'line3':
-        projectiles.push({ element: m.element, type: 'single', damage: 1 });
+        projectiles.push({ element: m.element, type: 'single', damage: 2 });
         break;
       case 'line4':
-        projectiles.push({ element: m.element, type: 'double', damage: 2 });
+        projectiles.push({ element: m.element, type: 'double', damage: 3 });
         break;
       case 'line5':
-        projectiles.push({ element: m.element, type: 'blast', damage: 3 });
+        projectiles.push({ element: m.element, type: 'blast', damage: 5 });
         break;
       case 'L':
-        projectiles.push({ element: m.element, type: 'spread', damage: 2 });
+        projectiles.push({ element: m.element, type: 'spread', damage: 3 });
         break;
       case 'T':
-        projectiles.push({ element: m.element, type: 'mega', damage: 4 });
+        projectiles.push({ element: m.element, type: 'mega', damage: 6 });
         break;
     }
   }
