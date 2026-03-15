@@ -7,15 +7,15 @@
   --text-dim: #888898;
   --text-dark: #444455;
 
-  /* Element colors */
-  --fire: #ff5533;
-  --fire-dim: rgba(255, 85, 51, 0.15);
-  --ice: #33bbff;
-  --ice-dim: rgba(51, 187, 255, 0.15);
-  --lightning: #ffcc00;
-  --lightning-dim: rgba(255, 204, 0, 0.15);
-  --kinetic: #cc88ff;
-  --kinetic-dim: rgba(204, 136, 255, 0.15);
+  /* Element colors — crisper, more saturated */
+  --fire: #ff6644;
+  --fire-dim: rgba(255, 102, 68, 0.2);
+  --ice: #44ccff;
+  --ice-dim: rgba(68, 204, 255, 0.2);
+  --lightning: #ffdd22;
+  --lightning-dim: rgba(255, 221, 34, 0.2);
+  --kinetic: #dd99ff;
+  --kinetic-dim: rgba(221, 153, 255, 0.2);
 
   --hp-green: #44dd44;
   --hp-red: #ff4444;
@@ -34,7 +34,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-::selection { background: rgba(255, 85, 51, 0.3); color: #fff; }
+::selection { background: rgba(255, 102, 68, 0.3); color: #fff; }
 
 body {
   background: var(--bg);
