@@ -6,10 +6,10 @@
 let nextId = 1;
 
 export const ELEMENT_COLORS = {
-  fire: '#ff5533',
-  ice: '#33bbff',
-  lightning: '#ffcc00',
-  kinetic: '#cc88ff',
+  fire: '#ff6644',
+  ice: '#44ccff',
+  lightning: '#ffdd22',
+  kinetic: '#dd99ff',
 };
 
 export const ELEMENT_EFFECTS = {
