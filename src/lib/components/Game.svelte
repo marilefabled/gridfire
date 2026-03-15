@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { createGrid, trySwap, findMatches, clearMatches, applyGravity, matchesToProjectiles, COLS, ROWS, ELEMENTS } from '$lib/game/Grid.js';
-  import { createBattlefield, spawnEnemy, fireProjectiles, updateBattlefield, getWaveConfig, ELEMENT_COLORS } from '$lib/game/Battlefield.js';
+  import { createBattlefield, spawnEnemy, spawnBoss, fireProjectiles, updateBattlefield, getWaveConfig, getMusicPulseFreq, rollPerks, hasPerk, ELEMENT_COLORS, PERK_POOL } from '$lib/game/Battlefield.js';
+  import { getHighScores, saveHighScores } from '$lib/game/HighScores.js';
   import audio from '$lib/game/Audio.js';
 
   // --- Core state ---
@@ -39,6 +40,22 @@
 
   // --- Grid glow state ---
   let lastMatchElement = $state(null);     // element of last match, for grid glow
+
+  // --- Perk selection state ---
+  let perkPhase = $state(false);
+  let perkChoices = $state([]);            // 3 perks to choose from
+
+  // --- High scores ---
+  let highScores = $state({ bestScore: 0, bestWave: 0, bestCombo: 0, totalGames: 0 });
+  let isNewBest = $state(false);
+
+  // --- Grid reaction state ---
+  let gridJitter = $state(false);
+  let gridDimmed = $state(false);
+  let gridBorderPulseColor = $state(null);
+
+  // --- Boss flash state ---
+  let bossFlash = $state(false);
 
   // --- Game loop ---
   let animFrame;
@@ -152,6 +169,12 @@
   // --- Battlefield game loop ---
   function gameLoop(time) {
     if (!gameStarted) return;
+    // Pause game loop during perk selection
+    if (perkPhase) {
+      animFrame = requestAnimationFrame(gameLoop);
+      return;
+    }
+
     const dt = Math.min((time - lastTime) / 1000, 0.05);
     lastTime = time;
 
@@ -172,7 +195,14 @@
     if (bf.waveActive && waveSpawnQueue.length === 0 && bf.enemies.length === 0 && !betweenWaves) {
       bf.waveActive = false;
       betweenWaves = true;
-      setTimeout(() => startNextWave(), 3000);
+
+      // Check if perk selection should trigger (every 3 waves)
+      if (bf.wave % 3 === 0 && bf.wave > 0) {
+        perkPhase = true;
+        perkChoices = rollPerks(bf);
+      } else {
+        setTimeout(() => startNextWave(), 3000);
+      }
     }
 
     // Tick battlefield
@@ -197,9 +227,37 @@
         case 'playerHit':
           audio.playerHit();
           triggerShake(2);
+          // Grid jitter + dim on player hit
+          gridJitter = true;
+          gridDimmed = true;
+          setTimeout(() => { gridJitter = false; }, 200);
+          setTimeout(() => { gridDimmed = false; }, 300);
           break;
         case 'gameOver':
           audio.gameOver();
+          // Save high scores on game over
+          const result = saveHighScores(bf.score, bf.wave, bf.maxCombo);
+          isNewBest = result.isNewBest;
+          highScores = getHighScores();
+          break;
+        case 'bossAttack':
+          triggerShake(2);
+          bossFlash = true;
+          setTimeout(() => { bossFlash = false; }, 200);
+          break;
+        case 'bossKill':
+          audio.bossKill();
+          addFloat('+100', ev.enemy.x, ev.enemy.y - 5, '#ffcc00');
+          addFloat('BOSS DOWN!', 50, 30, '#ff5533');
+          triggerShake(3);
+          break;
+        case 'weaknessHit':
+          audio.weaknessHit();
+          addFloat('WEAKNESS!', ev.enemy.x, ev.enemy.y - 8, '#ffd700');
+          break;
+        case 'crit':
+          audio.crit();
+          addFloat('CRIT!', ev.enemy.x, ev.enemy.y - 8, '#ffffff');
           break;
       }
     }
@@ -214,13 +272,32 @@
     bf.wave++;
     bf.waveActive = true;
     const config = getWaveConfig(bf.wave);
-    waveSpawnQueue = [...config];
-    waveSpawnTimer = config[0]?.delay || 0.5;
+    waveSpawnQueue = [...config.enemies];
+    waveSpawnTimer = config.enemies[0]?.delay || 0.5;
+
+    // Boss system: if wave config says boss, spawn one
+    if (config.boss) {
+      spawnBoss(bf, bf.wave);
+      audio.bossAppear();
+    }
+
+    // Update music pulse
+    audio.updatePulse(getMusicPulseFreq(bf.wave));
 
     waveAnnouncement = bf.wave;
     audio.waveStart();
     setTimeout(() => { waveAnnouncement = null; }, 2000);
     bf = bf;
+  }
+
+  function selectPerk(perk) {
+    bf.perks.push(perk);
+    audio.perkSelect();
+    perkPhase = false;
+    perkChoices = [];
+    bf = bf;
+    // Start next wave after 1s delay
+    setTimeout(() => startNextWave(), 1000);
   }
 
   function startGame() {
@@ -237,6 +314,20 @@
     lastMatchElement = null;
     matchLineCells = [];
     matchLineElement = null;
+    perkPhase = false;
+    perkChoices = [];
+    isNewBest = false;
+    gridJitter = false;
+    gridDimmed = false;
+    gridBorderPulseColor = null;
+    bossFlash = false;
+
+    // Load high scores
+    highScores = getHighScores();
+
+    // Start background music pulse
+    audio.startPulse(45);
+
     lastTime = performance.now();
     animFrame = requestAnimationFrame(gameLoop);
     setTimeout(() => startNextWave(), 2000);
@@ -244,7 +335,7 @@
 
   // --- Grid interaction ---
   function selectTile(r, c) {
-    if (processing || bf.gameOver) return;
+    if (processing || bf.gameOver || perkPhase) return;
 
     if (selected === null) {
       selected = { r, c };
@@ -313,7 +404,18 @@
         addFloat(`COMBO x${combo}!`, 50, 40, '#ffcc00');
       }
 
-      if (totalSize >= 4) triggerShake(0.3);
+      // Combo feedback: "+X COMBO" floating text on battlefield
+      if (combo >= 2) {
+        addFloat(`+${combo} COMBO`, 30, 25, '#ffcc00');
+      }
+
+      if (totalSize >= 4) {
+        triggerShake(0.3);
+        // Grid border pulse for big matches (4+ tiles)
+        const pulseElement = matches[matches.length - 1].element;
+        gridBorderPulseColor = ELEMENT_COLORS[pulseElement] || '#ffffff';
+        setTimeout(() => { gridBorderPulseColor = null; }, 500);
+      }
 
       // Track last match element for grid glow
       lastMatchElement = matches[matches.length - 1].element;
@@ -379,7 +481,7 @@
 
   // --- Keyboard ---
   function handleKeydown(e) {
-    if (bf.gameOver || processing) return;
+    if (bf.gameOver || processing || perkPhase) return;
 
     if (e.key === 'Escape') {
       selected = null;
@@ -422,10 +524,16 @@
   let hpPercent = $derived(Math.max(0, bf.player.hp / bf.player.maxHp * 100));
   let hpLow = $derived(hpPercent < 30);
 
+  // --- Boss HP derived ---
+  let bossHpPercent = $derived(bf.boss ? Math.max(0, bf.boss.hp / bf.boss.maxHp * 100) : 0);
+
   // --- Grid glow derived ---
   let gridGlowColor = $derived(
     combo > 0 && lastMatchElement ? ELEMENT_COLORS[lastMatchElement] : null
   );
+
+  // --- Combo glow gold at 3+ ---
+  let comboGoldGlow = $derived(combo >= 3);
 
   // --- Match line SVG path ---
   let matchLinePath = $derived.by(() => {
@@ -446,6 +554,7 @@
 
   // --- Lifecycle ---
   onMount(() => {
+    highScores = getHighScores();
     startGame();
     return () => {
       if (animFrame) cancelAnimationFrame(animFrame);
@@ -489,11 +598,19 @@
     }
     return '';
   }
+
+  // Perk card border color helper
+  function perkBorderColor(perk) {
+    if (perk.element && ELEMENT_COLORS[perk.element]) {
+      return ELEMENT_COLORS[perk.element];
+    }
+    return '#ffffff';
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="game" class:shaking>
+<div class="game" class:shaking class:boss-flash={bossFlash}>
   <!-- HUD -->
   <div class="hud">
     <div class="hud-score">
@@ -520,13 +637,29 @@
   </div>
 
   {#if combo > 1}
-    <div class="combo-display">
+    <div class="combo-display" class:combo-big={combo >= 3}>
       COMBO x{combo}
     </div>
   {/if}
 
   <!-- Battlefield -->
   <div class="battlefield" bind:this={bfContainer}>
+    <!-- Boss HP bar -->
+    {#if bf.boss}
+      <div class="boss-hp-bar-container">
+        <div class="boss-hp-label">
+          <span class="boss-hp-name">BOSS — WAVE {bf.wave}</span>
+          <span class="boss-hp-pct">{Math.ceil(bossHpPercent)}%</span>
+        </div>
+        <div class="boss-hp-bar">
+          <div
+            class="boss-hp-fill"
+            style="width: {bossHpPercent}%; background: {ELEMENT_COLORS[bf.boss.element] || '#ff5533'};"
+          ></div>
+        </div>
+      </div>
+    {/if}
+
     <!-- Parallax background layers -->
     <div class="parallax-far"></div>
     <div class="parallax-near"></div>
@@ -569,6 +702,7 @@
         class:flash={enemy.flashTimer > 0}
         class:slowed={enemy.effects.includes('slow')}
         class:burning={enemy.effects.includes('burn')}
+        class:boss-enemy={enemy.type === 'boss'}
         style="
           left: {enemy.x}%;
           top: {enemy.y}%;
@@ -580,7 +714,17 @@
           <div class="enemy-hp-fill" style="width: {Math.max(0, enemy.hp / enemy.maxHp * 100)}%"></div>
         </div>
         <div class="enemy-body" style="width: {enemy.size}px; height: {enemy.size}px;">
-          {#if enemy.type === 'grunt'}
+          {#if enemy.type === 'boss'}
+            <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
+              <polygon points="10,0 20,5 20,15 10,20 0,15 0,5" fill="var(--ecolor)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+              <polygon points="10,3 17,6.5 17,13.5 10,17 3,13.5 3,6.5" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+              <circle cx="7" cy="9" r="2" fill="rgba(0,0,0,0.6)"/>
+              <circle cx="13" cy="9" r="2" fill="rgba(0,0,0,0.6)"/>
+              <circle cx="7" cy="9" r="0.8" fill="rgba(255,200,200,0.5)"/>
+              <circle cx="13" cy="9" r="0.8" fill="rgba(255,200,200,0.5)"/>
+              <path d="M7 13 Q10 15 13 13" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="0.8"/>
+            </svg>
+          {:else if enemy.type === 'grunt'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
               <polygon points="10,1 18.66,6 18.66,14 10,19 1.34,14 1.34,6" fill="var(--ecolor)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
               <circle cx="7" cy="10" r="1.5" fill="rgba(0,0,0,0.6)"/>
@@ -618,6 +762,10 @@
             <div class="enemy-shield" style="border-color: {ELEMENT_COLORS[enemy.shield]}"></div>
           {/if}
         </div>
+        <!-- Weakness indicator dot -->
+        {#if enemy.weakness && ELEMENT_COLORS[enemy.weakness]}
+          <div class="enemy-weakness-dot" style="background: {ELEMENT_COLORS[enemy.weakness]}; box-shadow: 0 0 4px {ELEMENT_COLORS[enemy.weakness]};"></div>
+        {/if}
       </div>
     {/each}
 
@@ -666,7 +814,11 @@
   <div
     class="grid-area"
     class:combo-glow={combo > 0 && gridGlowColor}
-    style={gridGlowColor ? `--glow-color: ${gridGlowColor}` : ''}
+    class:combo-gold-glow={comboGoldGlow}
+    class:grid-jitter={gridJitter}
+    class:grid-dimmed={gridDimmed}
+    class:grid-border-pulse={gridBorderPulseColor != null}
+    style="{gridGlowColor ? `--glow-color: ${gridGlowColor};` : ''}{gridBorderPulseColor ? `--pulse-color: ${gridBorderPulseColor};` : ''}"
   >
     <div class="grid" style="--cols: {COLS}; --rows: {ROWS};">
       <!-- Match line SVG overlay -->
@@ -699,7 +851,7 @@
             class="tile {tileClass(r, c)}"
             style={tileSwapVars(r, c)}
             onclick={() => selectTile(r, c)}
-            disabled={processing || bf.gameOver}
+            disabled={processing || bf.gameOver || perkPhase}
             aria-label="{cell} tile at row {r + 1} column {c + 1}"
           >
             {#if cell === 'fire'}
@@ -743,10 +895,58 @@
     </div>
   </div>
 
+  <!-- Perk Selection Overlay -->
+  {#if perkPhase}
+    <div class="perk-overlay">
+      <div class="perk-content">
+        <h2 class="perk-title">CHOOSE A PERK</h2>
+        <div class="perk-cards">
+          {#each perkChoices as perk (perk.id)}
+            <button
+              class="perk-card"
+              style="--perk-border: {perkBorderColor(perk)};"
+              onclick={() => selectPerk(perk)}
+            >
+              {#if perk.element}
+                <div class="perk-element-icon" style="color: {ELEMENT_COLORS[perk.element]};">
+                  {#if perk.element === 'fire'}
+                    <svg viewBox="0 0 20 20" width="24" height="24">
+                      <path d="M10 2 C10 2 6 7 6 11 C6 14 7.5 16 10 17 C12.5 16 14 14 14 11 C14 7 10 2 10 2Z" fill="currentColor" opacity="0.9"/>
+                    </svg>
+                  {:else if perk.element === 'ice'}
+                    <svg viewBox="0 0 20 20" width="24" height="24">
+                      <line x1="10" y1="2" x2="10" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      <line x1="3.1" y1="6" x2="16.9" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      <line x1="3.1" y1="14" x2="16.9" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  {:else if perk.element === 'lightning'}
+                    <svg viewBox="0 0 20 20" width="24" height="24">
+                      <polygon points="11,1 5,11 9,11 7,19 15,9 11,9 13,1" fill="currentColor"/>
+                    </svg>
+                  {:else if perk.element === 'kinetic'}
+                    <svg viewBox="0 0 20 20" width="24" height="24">
+                      <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.8"/>
+                      <circle cx="10" cy="10" r="4" fill="currentColor" opacity="0.9"/>
+                    </svg>
+                  {/if}
+                </div>
+              {/if}
+              <span class="perk-name">{perk.name}</span>
+              <span class="perk-desc">{perk.desc}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Game Over Overlay -->
   {#if bf.gameOver}
     <div class="game-over-overlay">
       <div class="game-over-box">
+        {#if isNewBest}
+          <div class="new-best-banner">NEW BEST!</div>
+        {/if}
         <h1 class="go-title">GAME OVER</h1>
         <div class="go-stats">
           <div class="go-stat">
@@ -766,6 +966,25 @@
             <span class="go-stat-value">x{bf.maxCombo}</span>
           </div>
         </div>
+        {#if highScores.totalGames > 0}
+          <div class="go-personal-best">
+            <div class="go-pb-title">PERSONAL BEST</div>
+            <div class="go-pb-stats">
+              <div class="go-pb-stat">
+                <span class="go-pb-label">BEST SCORE</span>
+                <span class="go-pb-value">{highScores.bestScore.toLocaleString()}</span>
+              </div>
+              <div class="go-pb-stat">
+                <span class="go-pb-label">BEST WAVE</span>
+                <span class="go-pb-value">{highScores.bestWave}</span>
+              </div>
+              <div class="go-pb-stat">
+                <span class="go-pb-label">BEST COMBO</span>
+                <span class="go-pb-value">x{highScores.bestCombo}</span>
+              </div>
+            </div>
+          </div>
+        {/if}
         <button class="go-restart" onclick={restartGame}>PLAY AGAIN</button>
       </div>
     </div>
@@ -786,6 +1005,14 @@
   }
   .game.shaking {
     animation: shake 0.25s ease-out;
+  }
+  .game.boss-flash {
+    animation: bossFlashAnim 0.2s ease-out;
+  }
+  @keyframes bossFlashAnim {
+    0% { filter: brightness(1); }
+    30% { filter: brightness(1.8) saturate(1.5); }
+    100% { filter: brightness(1); }
   }
 
   /* =============================== HUD =============================== */
@@ -850,6 +1077,60 @@
     text-shadow: 0 0 12px rgba(255, 170, 34, 0.6);
     animation: pulse 0.5s ease-in-out infinite;
     pointer-events: none;
+    transition: transform 0.15s ease;
+  }
+  .combo-display.combo-big {
+    font-size: var(--fs-2xl, 1.8rem);
+    transform: translateX(-50%) scale(1.3);
+    text-shadow: 0 0 20px rgba(255, 170, 34, 0.8), 0 0 40px rgba(255, 170, 34, 0.4);
+  }
+
+  /* =============================== BOSS HP BAR =============================== */
+  .boss-hp-bar-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 18;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.6);
+    animation: bossBarAppear 0.5s ease-out;
+  }
+  @keyframes bossBarAppear {
+    0% { opacity: 0; transform: translateY(-100%); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .boss-hp-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+  .boss-hp-name {
+    font-size: var(--fs-xs);
+    color: var(--fire);
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(255, 85, 51, 0.5);
+  }
+  .boss-hp-pct {
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    font-weight: bold;
+  }
+  .boss-hp-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .boss-hp-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.2s linear;
+    box-shadow: 0 0 8px currentColor;
   }
 
   /* =============================== BATTLEFIELD =============================== */
@@ -947,6 +1228,10 @@
     z-index: 3;
     transition: none;
   }
+  .enemy.boss-enemy {
+    z-index: 4;
+    filter: drop-shadow(0 0 12px var(--ecolor));
+  }
   .enemy-body {
     position: relative;
     display: flex;
@@ -989,6 +1274,16 @@
     height: 100%;
     background: var(--hp-red);
     transition: width 0.15s linear;
+  }
+
+  /* Weakness indicator dot */
+  .enemy-weakness-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 2px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   /* Projectiles */
@@ -1068,12 +1363,38 @@
       var(--bg);
     padding: var(--s3);
     border-top: 1px solid var(--border);
-    transition: box-shadow 0.4s ease;
+    transition: box-shadow 0.4s ease, opacity 0.15s ease, border-color 0.3s ease;
   }
   .grid-area.combo-glow {
     box-shadow:
       inset 0 0 30px color-mix(in srgb, var(--glow-color, #ffffff) 20%, transparent),
       inset 0 0 60px color-mix(in srgb, var(--glow-color, #ffffff) 8%, transparent);
+  }
+  .grid-area.combo-gold-glow {
+    box-shadow:
+      inset 0 0 30px rgba(255, 204, 0, 0.25),
+      inset 0 0 60px rgba(255, 204, 0, 0.1);
+    border-color: rgba(255, 204, 0, 0.5);
+  }
+  .grid-area.grid-jitter {
+    animation: gridJitterAnim 0.2s ease-out;
+  }
+  @keyframes gridJitterAnim {
+    0% { transform: translate(0, 0); }
+    20% { transform: translate(-2px, 1px); }
+    40% { transform: translate(2px, -1px); }
+    60% { transform: translate(-1px, 2px); }
+    80% { transform: translate(1px, -1px); }
+    100% { transform: translate(0, 0); }
+  }
+  .grid-area.grid-dimmed {
+    opacity: 0.6;
+  }
+  .grid-area.grid-border-pulse {
+    border-color: var(--pulse-color, #ffffff);
+    box-shadow:
+      inset 0 0 20px color-mix(in srgb, var(--pulse-color, #ffffff) 30%, transparent),
+      0 0 15px color-mix(in srgb, var(--pulse-color, #ffffff) 20%, transparent);
   }
 
   .grid {
@@ -1204,6 +1525,75 @@
     animation: shake 0.25s ease-out;
   }
 
+  /* =============================== PERK OVERLAY =============================== */
+  .perk-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.4s ease-out;
+  }
+  .perk-content {
+    text-align: center;
+    padding: var(--s4);
+    max-width: 95%;
+  }
+  .perk-title {
+    font-size: var(--fs-2xl, 1.8rem);
+    color: var(--gold);
+    letter-spacing: 4px;
+    margin-bottom: var(--s5);
+    text-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+    animation: pop 0.5s var(--ease-bounce);
+  }
+  .perk-cards {
+    display: flex;
+    gap: var(--s3);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .perk-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s2);
+    width: 140px;
+    padding: var(--s4) var(--s3);
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--perk-border, #ffffff);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text);
+  }
+  .perk-card:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-4px);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--perk-border, #ffffff) 30%, transparent);
+  }
+  .perk-element-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  .perk-name {
+    font-size: var(--fs-sm);
+    font-weight: bold;
+    color: var(--text);
+    letter-spacing: 1px;
+  }
+  .perk-desc {
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
   /* =============================== GAME OVER =============================== */
   .game-over-overlay {
     position: absolute;
@@ -1222,6 +1612,15 @@
   .game-over-box {
     text-align: center;
     padding: var(--s7) var(--s6);
+  }
+  .new-best-banner {
+    font-size: var(--fs-xl);
+    color: var(--gold);
+    font-weight: bold;
+    letter-spacing: 4px;
+    margin-bottom: var(--s3);
+    text-shadow: 0 0 20px rgba(255, 204, 0, 0.6);
+    animation: pop 0.6s var(--ease-bounce);
   }
   .go-title {
     font-size: var(--fs-3xl);
@@ -1250,6 +1649,40 @@
   .go-stat-value {
     font-size: var(--fs-xl);
     color: var(--gold);
+    font-weight: bold;
+  }
+  .go-personal-best {
+    margin-bottom: var(--s5);
+    padding: var(--s3) var(--s4);
+    border: 1px solid rgba(255, 204, 0, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 204, 0, 0.03);
+  }
+  .go-pb-title {
+    font-size: var(--fs-sm);
+    color: var(--gold);
+    letter-spacing: 2px;
+    font-weight: bold;
+    margin-bottom: var(--s2);
+  }
+  .go-pb-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: var(--s3);
+  }
+  .go-pb-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .go-pb-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+  .go-pb-value {
+    font-size: var(--fs-sm);
+    color: var(--text);
     font-weight: bold;
   }
   .go-restart {
