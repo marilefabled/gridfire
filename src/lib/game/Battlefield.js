@@ -24,7 +24,7 @@ export function createBattlefield() {
     enemies: [],
     projectiles: [],
     particles: [],
-    player: { x: 40, y: 50, hp: 100, maxHp: 100, alive: true },
+    player: { x: 8, y: 50, hp: 100, maxHp: 100, alive: true },
     score: 0,
     combo: 0,
     maxCombo: 0,
