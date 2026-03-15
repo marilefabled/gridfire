@@ -101,7 +101,7 @@ export function spawnEnemy(bf, type = 'grunt', elementOverride = null) {
     kinetic: '#8855aa',
   };
 
-  const y = 50 + (Math.random() - 0.5) * 16;
+  const y = 50 + (Math.random() - 0.5) * 10;
   bf.enemies.push({
     id: nextId++,
     type,
