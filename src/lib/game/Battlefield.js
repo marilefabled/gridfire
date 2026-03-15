@@ -81,10 +81,10 @@ export function rollPerks(bf) {
 /** Spawn an enemy on the right side — single lane with slight jitter */
 export function spawnEnemy(bf, type = 'grunt', elementOverride = null) {
   const templates = {
-    grunt:    { hp: 3, maxHp: 3, speed: 0.12, size: 18, color: '#aa4444', points: 10 },
-    rusher:   { hp: 1, maxHp: 1, speed: 0.25, size: 14, color: '#dd6622', points: 15 },
-    tank:     { hp: 8, maxHp: 8, speed: 0.06, size: 24, color: '#664444', points: 25 },
-    shielded: { hp: 5, maxHp: 5, speed: 0.1, size: 20, color: '#446666', points: 20, shield: 'ice' },
+    grunt:    { hp: 2, maxHp: 2, speed: 0.12, size: 20, color: '#aa4444', points: 10 },
+    rusher:   { hp: 1, maxHp: 1, speed: 0.22, size: 16, color: '#dd6622', points: 15 },
+    tank:     { hp: 6, maxHp: 6, speed: 0.06, size: 26, color: '#664444', points: 25 },
+    shielded: { hp: 4, maxHp: 4, speed: 0.1, size: 22, color: '#446666', points: 20, shield: 'ice' },
   };
   const t = templates[type] || templates.grunt;
 
