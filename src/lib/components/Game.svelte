@@ -248,7 +248,7 @@
         case 'bossKill':
           audio.bossKill();
           addFloat('+100', ev.enemy.x, ev.enemy.y - 5, '#ffcc00');
-          addFloat('BOSS DOWN!', 50, 30, '#ff5533');
+          addFloat('BOSS DOWN!', 50, 30, '#ff6644');
           triggerShake(3);
           break;
         case 'weaknessHit':
@@ -483,6 +483,15 @@
   function handleKeydown(e) {
     if (bf.gameOver || processing || perkPhase) return;
 
+    // Allow starting the game with Enter from title screen
+    if (!gameStarted && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      startGame();
+      return;
+    }
+
+    if (!gameStarted) return;
+
     if (e.key === 'Escape') {
       selected = null;
       return;
@@ -535,6 +544,11 @@
   // --- Combo glow gold at 3+ ---
   let comboGoldGlow = $derived(combo >= 3);
 
+  // --- Enemy approach warning: any enemy at x < 25% ---
+  let enemyApproaching = $derived(
+    gameStarted && !bf.gameOver && bf.enemies.some(e => e.x < 25)
+  );
+
   // --- Match line SVG path ---
   let matchLinePath = $derived.by(() => {
     if (matchLineCells.length < 2) return '';
@@ -552,10 +566,14 @@
     return d;
   });
 
+  // --- Perk icon element helper ---
+  function perkIconElement(perk) {
+    return perk.element || null;
+  }
+
   // --- Lifecycle ---
   onMount(() => {
     highScores = getHighScores();
-    startGame();
     return () => {
       if (animFrame) cancelAnimationFrame(animFrame);
     };
@@ -611,18 +629,30 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="game" class:shaking class:boss-flash={bossFlash}>
+
+  <!-- TITLE SCREEN OVERLAY -->
+  {#if !gameStarted}
+    <div class="title-overlay">
+      <div class="title-content">
+        <h1 class="title-logo">GRIDFIRE</h1>
+        <p class="title-subtitle">MATCH. LOAD. FIRE.</p>
+        <button class="title-start" onclick={startGame}>START</button>
+        {#if highScores.totalGames > 0}
+          <div class="title-best">
+            <span>BEST: {highScores.bestScore.toLocaleString()}</span>
+            <span>WAVE: {highScores.bestWave}</span>
+          </div>
+        {/if}
+        <div class="title-credit">adarkfable</div>
+      </div>
+    </div>
+  {/if}
+
   <!-- HUD -->
   <div class="hud">
     <div class="hud-score">
       <span class="hud-label">SCORE</span>
       <span class="hud-value">{bf.score.toLocaleString()}</span>
-    </div>
-    <div class="hud-wave">
-      {#if bf.waveActive}
-        WAVE {bf.wave}
-      {:else if betweenWaves}
-        GET READY
-      {/if}
     </div>
     <div class="hud-hp">
       <span class="hud-label">HP</span>
@@ -643,7 +673,22 @@
   {/if}
 
   <!-- Battlefield -->
-  <div class="battlefield" bind:this={bfContainer}>
+  <div class="battlefield" class:enemy-approaching={enemyApproaching} bind:this={bfContainer}>
+    <!-- Wave badge — always visible during gameplay -->
+    {#if gameStarted && !bf.gameOver}
+      <div class="wave-badge">
+        {#if waveAnnouncement}
+          WAVE {waveAnnouncement}
+        {:else if bf.waveActive}
+          WAVE {bf.wave}
+        {:else if betweenWaves}
+          GET READY
+        {:else}
+          WAVE {bf.wave}
+        {/if}
+      </div>
+    {/if}
+
     <!-- Boss HP bar -->
     {#if bf.boss}
       <div class="boss-hp-bar-container">
@@ -654,7 +699,7 @@
         <div class="boss-hp-bar">
           <div
             class="boss-hp-fill"
-            style="width: {bossHpPercent}%; background: {ELEMENT_COLORS[bf.boss.element] || '#ff5533'};"
+            style="width: {bossHpPercent}%; background: {ELEMENT_COLORS[bf.boss.element] || '#ff6644'};"
           ></div>
         </div>
       </div>
@@ -805,6 +850,44 @@
         {ft.text}
       </div>
     {/each}
+
+    <!-- Active perks tray -->
+    {#if bf.perks.length > 0}
+      <div class="perks-tray">
+        {#each bf.perks as perk (perk.id)}
+          <div
+            class="perk-pip"
+            style="color: {perk.element ? ELEMENT_COLORS[perk.element] || '#ffffff' : '#ffffff'};"
+            title={perk.name}
+          >
+            {#if perk.element === 'fire'}
+              <svg viewBox="0 0 20 20" width="16" height="16">
+                <path d="M10 2 C10 2 6 7 6 11 C6 14 7.5 16 10 17 C12.5 16 14 14 14 11 C14 7 10 2 10 2Z" fill="currentColor" opacity="0.9"/>
+              </svg>
+            {:else if perk.element === 'ice'}
+              <svg viewBox="0 0 20 20" width="16" height="16">
+                <line x1="10" y1="2" x2="10" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="3.1" y1="6" x2="16.9" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="3.1" y1="14" x2="16.9" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            {:else if perk.element === 'lightning'}
+              <svg viewBox="0 0 20 20" width="16" height="16">
+                <polygon points="11,1 5,11 9,11 7,19 15,9 11,9 13,1" fill="currentColor"/>
+              </svg>
+            {:else if perk.element === 'kinetic'}
+              <svg viewBox="0 0 20 20" width="16" height="16">
+                <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.8"/>
+                <circle cx="10" cy="10" r="4" fill="currentColor" opacity="0.9"/>
+              </svg>
+            {:else}
+              <svg viewBox="0 0 20 20" width="16" height="16">
+                <polygon points="10,1 12.5,7 19,8 14,12.5 15.5,19 10,15.5 4.5,19 6,12.5 1,8 7.5,7" fill="currentColor" opacity="0.9"/>
+              </svg>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <!-- Separator line between battlefield and grid -->
@@ -851,7 +934,7 @@
             class="tile {tileClass(r, c)}"
             style={tileSwapVars(r, c)}
             onclick={() => selectTile(r, c)}
-            disabled={processing || bf.gameOver || perkPhase}
+            disabled={processing || bf.gameOver || perkPhase || !gameStarted}
             aria-label="{cell} tile at row {r + 1} column {c + 1}"
           >
             {#if cell === 'fire'}
@@ -944,10 +1027,12 @@
   {#if bf.gameOver}
     <div class="game-over-overlay">
       <div class="game-over-box">
+        <div class="go-game-title">GRIDFIRE</div>
         {#if isNewBest}
           <div class="new-best-banner">NEW BEST!</div>
         {/if}
         <h1 class="go-title">GAME OVER</h1>
+        <div class="go-summary">Survived {bf.wave} waves with {bf.enemiesKilled} kills</div>
         <div class="go-stats">
           <div class="go-stat">
             <span class="go-stat-label">FINAL SCORE</span>
@@ -986,6 +1071,7 @@
           </div>
         {/if}
         <button class="go-restart" onclick={restartGame}>PLAY AGAIN</button>
+        <div class="go-credit">adarkfable</div>
       </div>
     </div>
   {/if}
@@ -1015,6 +1101,76 @@
     100% { filter: brightness(1); }
   }
 
+  /* =============================== TITLE SCREEN =============================== */
+  .title-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.6s ease-out;
+  }
+  .title-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s3);
+  }
+  .title-logo {
+    font-size: 48px;
+    color: var(--fire);
+    letter-spacing: 8px;
+    text-shadow:
+      0 0 20px rgba(255, 102, 68, 0.6),
+      0 0 40px rgba(255, 102, 68, 0.3),
+      0 0 80px rgba(255, 102, 68, 0.15);
+    animation: titlePulse 3s ease-in-out infinite;
+  }
+  @keyframes titlePulse {
+    0%, 100% { text-shadow: 0 0 20px rgba(255, 102, 68, 0.6), 0 0 40px rgba(255, 102, 68, 0.3), 0 0 80px rgba(255, 102, 68, 0.15); }
+    50% { text-shadow: 0 0 30px rgba(255, 102, 68, 0.8), 0 0 60px rgba(255, 102, 68, 0.4), 0 0 100px rgba(255, 102, 68, 0.2); }
+  }
+  .title-subtitle {
+    font-size: var(--fs-sm);
+    color: var(--text-dim);
+    letter-spacing: 6px;
+    margin-top: var(--s1);
+  }
+  .title-start {
+    font-size: var(--fs-xl);
+    padding: var(--s4) var(--s7);
+    border: 2px solid var(--fire);
+    color: var(--fire);
+    letter-spacing: 6px;
+    margin-top: var(--s5);
+    background: var(--fire-dim);
+    transition: all 0.2s var(--ease-out);
+    cursor: pointer;
+  }
+  .title-start:hover {
+    background: var(--fire);
+    color: var(--bg);
+    box-shadow: 0 0 30px rgba(255, 102, 68, 0.5);
+  }
+  .title-best {
+    display: flex;
+    gap: var(--s5);
+    margin-top: var(--s3);
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+  .title-credit {
+    position: absolute;
+    bottom: var(--s5);
+    font-size: 9px;
+    color: var(--text-dark);
+    letter-spacing: 3px;
+  }
+
   /* =============================== HUD =============================== */
   .hud {
     position: absolute;
@@ -1036,12 +1192,6 @@
     font-size: var(--fs-lg);
     color: var(--gold);
     font-weight: bold;
-  }
-  .hud-wave {
-    font-size: var(--fs-sm);
-    color: var(--text-dim);
-    text-align: center;
-    padding-top: 2px;
   }
   .hud-hp {
     text-align: right;
@@ -1085,6 +1235,24 @@
     text-shadow: 0 0 20px rgba(255, 170, 34, 0.8), 0 0 40px rgba(255, 170, 34, 0.4);
   }
 
+  /* =============================== WAVE BADGE =============================== */
+  .wave-badge {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 16;
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
   /* =============================== BOSS HP BAR =============================== */
   .boss-hp-bar-container {
     position: absolute;
@@ -1111,7 +1279,7 @@
     color: var(--fire);
     font-weight: bold;
     letter-spacing: 2px;
-    text-shadow: 0 0 8px rgba(255, 85, 51, 0.5);
+    text-shadow: 0 0 8px rgba(255, 102, 68, 0.5);
   }
   .boss-hp-pct {
     font-size: var(--fs-xs);
@@ -1142,6 +1310,24 @@
       radial-gradient(ellipse at 10% 50%, rgba(100, 40, 40, 0.08) 0%, transparent 60%),
       var(--panel);
     border-bottom: none;
+  }
+
+  /* Enemy approach warning — red pulse on left edge */
+  .battlefield.enemy-approaching::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 30px;
+    z-index: 14;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(255, 50, 30, 0.25) 0%, transparent 100%);
+    animation: warningPulse 0.8s ease-in-out infinite;
+  }
+  @keyframes warningPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
   }
 
   /* --- Parallax background layers --- */
@@ -1202,7 +1388,7 @@
   }
   .player-svg {
     display: block;
-    filter: drop-shadow(0 0 6px rgba(255, 85, 51, 0.3));
+    filter: drop-shadow(0 0 6px rgba(255, 102, 68, 0.3));
   }
   .player-hp-bar {
     width: 40px;
@@ -1310,7 +1496,7 @@
     font-size: var(--fs-3xl);
     font-weight: bold;
     color: var(--text);
-    text-shadow: 0 0 20px rgba(255, 85, 51, 0.5);
+    text-shadow: 0 0 20px rgba(255, 102, 68, 0.5);
     z-index: 15;
     animation: waveIn 2s var(--ease-out) forwards;
     pointer-events: none;
@@ -1336,6 +1522,32 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   }
 
+  /* =============================== PERKS TRAY =============================== */
+  .perks-tray {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    display: flex;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .perk-pip {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    filter: drop-shadow(0 0 3px currentColor);
+    pointer-events: auto;
+    cursor: default;
+  }
+  .perk-pip svg {
+    display: block;
+  }
+
   /* =============================== SEPARATOR =============================== */
   .bf-grid-separator {
     height: 2px;
@@ -1359,6 +1571,7 @@
     align-items: center;
     justify-content: center;
     background:
+      repeating-radial-gradient(circle at center, rgba(255, 255, 255, 0.04) 0px, rgba(255, 255, 255, 0.04) 1px, transparent 1px, transparent 20px),
       radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.03) 0%, transparent 60%),
       var(--bg);
     padding: var(--s3);
@@ -1427,7 +1640,7 @@
   /* Tile */
   .tile {
     position: relative;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 2px solid transparent;
     display: flex;
     align-items: center;
@@ -1446,26 +1659,30 @@
     transform: scale(0.9);
   }
 
-  /* Element colors */
+  /* Element colors — crisper borders, inner glow, more opaque backgrounds */
   .tile.fire {
     background: var(--fire-dim);
     color: var(--fire);
-    border-color: rgba(255, 85, 51, 0.25);
+    border-color: rgba(255, 102, 68, 0.4);
+    box-shadow: inset 0 0 8px rgba(255, 102, 68, 0.1);
   }
   .tile.ice {
     background: var(--ice-dim);
     color: var(--ice);
-    border-color: rgba(51, 187, 255, 0.25);
+    border-color: rgba(68, 204, 255, 0.4);
+    box-shadow: inset 0 0 8px rgba(68, 204, 255, 0.1);
   }
   .tile.lightning {
     background: var(--lightning-dim);
     color: var(--lightning);
-    border-color: rgba(255, 204, 0, 0.25);
+    border-color: rgba(255, 221, 34, 0.4);
+    box-shadow: inset 0 0 8px rgba(255, 221, 34, 0.1);
   }
   .tile.kinetic {
     background: var(--kinetic-dim);
     color: var(--kinetic);
-    border-color: rgba(204, 136, 255, 0.25);
+    border-color: rgba(221, 153, 255, 0.4);
+    box-shadow: inset 0 0 8px rgba(221, 153, 255, 0.1);
   }
 
   .tile-icon {
@@ -1477,10 +1694,10 @@
     filter: drop-shadow(0 0 4px currentColor);
   }
 
-  /* Selected tile */
+  /* Selected tile — sharper white border, stronger glow */
   .tile.selected {
-    border-color: #ffffff !important;
-    box-shadow: 0 0 12px rgba(255, 255, 255, 0.4), inset 0 0 8px rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 1) !important;
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.6), 0 0 4px rgba(255, 255, 255, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.15);
     animation: pulse 0.8s ease-in-out infinite;
     z-index: 2;
   }
@@ -1613,6 +1830,12 @@
     text-align: center;
     padding: var(--s7) var(--s6);
   }
+  .go-game-title {
+    font-size: var(--fs-sm);
+    color: var(--text-dark);
+    letter-spacing: 4px;
+    margin-bottom: var(--s2);
+  }
   .new-best-banner {
     font-size: var(--fs-xl);
     color: var(--gold);
@@ -1626,9 +1849,15 @@
     font-size: var(--fs-3xl);
     color: var(--fire);
     letter-spacing: 6px;
-    margin-bottom: var(--s6);
-    text-shadow: 0 0 30px rgba(255, 85, 51, 0.5);
+    margin-bottom: var(--s3);
+    text-shadow: 0 0 30px rgba(255, 102, 68, 0.5);
     animation: pop 0.5s var(--ease-bounce);
+  }
+  .go-summary {
+    font-size: var(--fs-sm);
+    color: var(--text-dim);
+    margin-bottom: var(--s6);
+    letter-spacing: 1px;
   }
   .go-stats {
     display: grid;
@@ -1698,6 +1927,12 @@
   .go-restart:hover {
     background: var(--fire);
     color: var(--bg);
-    box-shadow: 0 0 20px rgba(255, 85, 51, 0.4);
+    box-shadow: 0 0 20px rgba(255, 102, 68, 0.4);
+  }
+  .go-credit {
+    font-size: 9px;
+    color: var(--text-dark);
+    letter-spacing: 3px;
+    margin-top: var(--s5);
   }
 </style>
