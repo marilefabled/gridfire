@@ -242,7 +242,7 @@ export function updateBattlefield(bf, dt) {
     // Check collision with enemies
     for (const e of bf.enemies) {
       const dist = Math.hypot(p.x - e.x, p.y - e.y);
-      const hitRadius = (e.size / 2 + p.size / 2) * (e.type === 'boss' ? 0.3 : 0.2);
+      const hitRadius = (e.size / 2 + p.size / 2) * (e.type === 'boss' ? 0.4 : 0.35);
       if (dist < hitRadius) {
         applyDamage(bf, e, p.damage, p.element, events);
         spawnHitParticles(bf, e.x, e.y, p.element, 6);
