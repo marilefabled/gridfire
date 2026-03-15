@@ -58,19 +58,20 @@ export function spawnEnemy(bf, type = 'grunt') {
   });
 }
 
-/** Fire projectiles from matches */
+/** Fire projectiles from matches — all along the center lane */
 export function fireProjectiles(bf, projectileList) {
   for (const p of projectileList) {
     const count = p.type === 'double' ? 2 : p.type === 'spread' ? 3 : p.type === 'mega' ? 5 : 1;
     const isBlast = p.type === 'blast';
 
     for (let i = 0; i < count; i++) {
-      const spread = count > 1 ? (i - (count - 1) / 2) * 8 : 0;
+      // Slight vertical spread for multi-shots, but clamped near the lane
+      const spread = count > 1 ? (i - (count - 1) / 2) * 5 : 0;
       bf.projectiles.push({
         id: nextId++,
-        x: 8,
+        x: 12,
         y: 50 + spread,
-        speed: isBlast ? 3 : 2,
+        speed: isBlast ? 2 : 1.2,
         element: p.element,
         damage: p.damage,
         isBlast,
