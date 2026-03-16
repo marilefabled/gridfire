@@ -26,6 +26,7 @@
 
   // --- Wave management ---
   let waveAnnouncement = $state(null);     // wave number or null
+  let waveHostileCount = $state(0);        // enemy count for wave announcement
   let waveSpawnQueue = $state([]);
   let waveSpawnTimer = $state(0);
   let betweenWaves = $state(false);
@@ -281,6 +282,9 @@
       audio.bossAppear();
     }
 
+    // Track hostile count for wave announcement
+    waveHostileCount = config.enemies.length + (config.boss ? 1 : 0);
+
     // Update music pulse
     audio.updatePulse(getMusicPulseFreq(bf.wave));
 
@@ -311,6 +315,7 @@
     waveSpawnQueue = [];
     betweenWaves = false;
     waveAnnouncement = null;
+    waveHostileCount = 0;
     lastMatchElement = null;
     matchLineCells = [];
     matchLineElement = null;
@@ -566,6 +571,14 @@
     return d;
   });
 
+  // --- Enemy bob offset helper ---
+  const BOB_SPEEDS = { grunt: 2.2, rusher: 1.6, tank: 3.0, shielded: 2.6, boss: 1.8 };
+  function enemyBobVars(enemy) {
+    const speed = BOB_SPEEDS[enemy.type] || 2.2;
+    const offset = (enemy.id * 0.7) % 6.28; // pseudo-random phase offset per enemy
+    return `--bob-speed: ${speed}s; --bob-offset: ${offset}s;`;
+  }
+
   // --- Perk icon element helper ---
   function perkIconElement(perk) {
     return perk.element || null;
@@ -709,6 +722,13 @@
     <div class="parallax-far"></div>
     <div class="parallax-near"></div>
 
+    <!-- Background silhouettes for depth -->
+    <div class="bf-silhouettes">
+      <div class="bf-sil bf-sil-1"></div>
+      <div class="bf-sil bf-sil-2"></div>
+      <div class="bf-sil bf-sil-3"></div>
+    </div>
+
     <!-- Ground line and lane markers -->
     <div class="bf-lane">
       <div class="bf-ground"></div>
@@ -716,20 +736,31 @@
 
     <!-- Player -->
     <div class="player" style="left: {bf.player.x / 100 * 100}%; top: {bf.player.y}%">
-      <svg class="player-svg" viewBox="0 0 40 40" width="40" height="40">
-        <!-- Shield arc on the left -->
-        <path d="M 8 8 Q 2 20 8 32" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-        <!-- Platform base -->
-        <rect x="10" y="22" width="20" height="10" rx="3" ry="3" fill="var(--panel-light)" stroke="var(--text)" stroke-width="1.5"/>
+      <svg class="player-svg" viewBox="0 0 44 44" width="44" height="44">
+        <!-- Multi-layer shield arcs (force field) -->
+        <path d="M 7 6 Q 0 22 7 38" fill="none" stroke="var(--ice)" stroke-width="1.5" stroke-linecap="round" opacity="0.25" class="shield-arc shield-arc-1"/>
+        <path d="M 9 9 Q 3 22 9 35" fill="none" stroke="var(--ice)" stroke-width="1.8" stroke-linecap="round" opacity="0.35" class="shield-arc shield-arc-2"/>
+        <path d="M 11 12 Q 6 22 11 32" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round" opacity="0.5" class="shield-arc shield-arc-3"/>
+        <!-- Wider platform base -->
+        <rect x="8" y="24" width="26" height="12" rx="3" ry="3" fill="var(--panel-light)" stroke="var(--text)" stroke-width="1.5"/>
+        <line x1="10" y1="30" x2="32" y2="30" stroke="var(--text-dim)" stroke-width="0.8" opacity="0.3"/>
         <!-- Turret housing -->
-        <rect x="14" y="14" width="12" height="12" rx="2" ry="2" fill="var(--panel-light)" stroke="var(--text)" stroke-width="1.5"/>
-        <!-- Barrel -->
-        <rect x="26" y="17" width="12" height="6" rx="2" ry="2" fill="var(--text)" opacity="0.9"/>
-        <!-- Barrel tip glow -->
-        <circle cx="38" cy="20" r="2" fill="var(--fire)" opacity="0.6"/>
-        <!-- Details -->
-        <line x1="16" y1="20" x2="24" y2="20" stroke="var(--text-dim)" stroke-width="1" opacity="0.4"/>
-        <circle cx="20" cy="20" r="1.5" fill="var(--text)" opacity="0.5"/>
+        <rect x="14" y="14" width="14" height="14" rx="2" ry="2" fill="var(--panel-light)" stroke="var(--text)" stroke-width="1.5"/>
+        <!-- Barrel with detail -->
+        <rect x="28" y="17" width="13" height="7" rx="2" ry="2" fill="var(--text)" opacity="0.9"/>
+        <line x1="30" y1="19" x2="30" y2="22" stroke="var(--panel)" stroke-width="0.8" opacity="0.5"/>
+        <line x1="33" y1="19" x2="33" y2="22" stroke="var(--panel)" stroke-width="0.8" opacity="0.5"/>
+        <!-- Muzzle tip glow -->
+        <circle cx="41" cy="20.5" r="2.5" fill="var(--fire)" opacity="0.7" class="muzzle-glow"/>
+        <circle cx="41" cy="20.5" r="4" fill="var(--fire)" opacity="0.15" class="muzzle-glow"/>
+        <!-- Radar dish / antenna on top -->
+        <line x1="21" y1="14" x2="21" y2="8" stroke="var(--text-dim)" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="21" cy="7" r="2" fill="none" stroke="var(--text-dim)" stroke-width="1" opacity="0.6"/>
+        <circle cx="21" cy="7" r="0.8" fill="var(--text-dim)" opacity="0.8"/>
+        <!-- Turret detail -->
+        <line x1="16" y1="21" x2="26" y2="21" stroke="var(--text-dim)" stroke-width="1" opacity="0.4"/>
+        <circle cx="21" cy="21" r="2" fill="var(--text)" opacity="0.5"/>
+        <circle cx="21" cy="21" r="0.8" fill="var(--fire)" opacity="0.4"/>
       </svg>
       <div class="player-hp-bar">
         <div
@@ -753,6 +784,7 @@
           top: {enemy.y}%;
           --ecolor: {enemy.color};
           --esize: {enemy.size}px;
+          {enemyBobVars(enemy)}
         "
       >
         <div class="enemy-hp-bar">
@@ -761,42 +793,106 @@
         <div class="enemy-body" style="width: {enemy.size}px; height: {enemy.size}px;">
           {#if enemy.type === 'boss'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
-              <polygon points="10,0 20,5 20,15 10,20 0,15 0,5" fill="var(--ecolor)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-              <polygon points="10,3 17,6.5 17,13.5 10,17 3,13.5 3,6.5" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
-              <circle cx="7" cy="9" r="2" fill="rgba(0,0,0,0.6)"/>
-              <circle cx="13" cy="9" r="2" fill="rgba(0,0,0,0.6)"/>
-              <circle cx="7" cy="9" r="0.8" fill="rgba(255,200,200,0.5)"/>
-              <circle cx="13" cy="9" r="0.8" fill="rgba(255,200,200,0.5)"/>
-              <path d="M7 13 Q10 15 13 13" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="0.8"/>
+              <!-- Crown spikes on top -->
+              <polygon points="6,2 7,5 5,5" fill="var(--ecolor)" stroke="rgba(255,255,255,0.3)" stroke-width="0.4"/>
+              <polygon points="10,0.5 11,4 9,4" fill="var(--ecolor)" stroke="rgba(255,255,255,0.4)" stroke-width="0.4"/>
+              <polygon points="14,2 15,5 13,5" fill="var(--ecolor)" stroke="rgba(255,255,255,0.3)" stroke-width="0.4"/>
+              <!-- Outer hexagon -->
+              <polygon points="10,2 18.5,6 18.5,14 10,18 1.5,14 1.5,6" fill="var(--ecolor)" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+              <!-- Inner hexagon detail -->
+              <polygon points="10,4.5 15.5,7 15.5,13 10,15.5 4.5,13 4.5,7" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+              <!-- Power lines -->
+              <line x1="4.5" y1="10" x2="8" y2="10" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+              <line x1="12" y1="10" x2="15.5" y2="10" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+              <line x1="10" y1="4.5" x2="10" y2="7" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+              <line x1="10" y1="13" x2="10" y2="15.5" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+              <!-- Eyes with glow highlights -->
+              <circle cx="7" cy="9" r="2.2" fill="rgba(0,0,0,0.7)"/>
+              <circle cx="13" cy="9" r="2.2" fill="rgba(0,0,0,0.7)"/>
+              <circle cx="7.5" cy="8.5" r="1" fill="rgba(255,100,100,0.7)"/>
+              <circle cx="13.5" cy="8.5" r="1" fill="rgba(255,100,100,0.7)"/>
+              <circle cx="7" cy="8.2" r="0.4" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="13" cy="8.2" r="0.4" fill="rgba(255,255,255,0.8)"/>
+              <!-- Wide menacing grin -->
+              <path d="M5.5 12.5 Q7 14 10 14.5 Q13 14 14.5 12.5" fill="none" stroke="rgba(0,0,0,0.6)" stroke-width="1" stroke-linecap="round"/>
+              <path d="M6.5 12.8 L7.5 13.2 M9 13.5 L10 13.8 L11 13.5 M12.5 13.2 L13.5 12.8" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="0.4"/>
             </svg>
           {:else if enemy.type === 'grunt'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
-              <polygon points="10,1 18.66,6 18.66,14 10,19 1.34,14 1.34,6" fill="var(--ecolor)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-              <circle cx="7" cy="10" r="1.5" fill="rgba(0,0,0,0.6)"/>
-              <circle cx="13" cy="10" r="1.5" fill="rgba(0,0,0,0.6)"/>
+              <!-- Antenna/horn bumps on top -->
+              <line x1="7" y1="2" x2="6" y2="0" stroke="var(--ecolor)" stroke-width="1.2" stroke-linecap="round"/>
+              <circle cx="6" cy="0" r="0.6" fill="rgba(255,255,255,0.4)"/>
+              <line x1="13.5" y1="2" x2="14.5" y2="0.5" stroke="var(--ecolor)" stroke-width="1" stroke-linecap="round"/>
+              <circle cx="14.5" cy="0.5" r="0.5" fill="rgba(255,255,255,0.3)"/>
+              <!-- Slightly asymmetric hexagon body -->
+              <polygon points="10,1.5 18.2,5.8 18.8,14.2 10.2,19 1.5,14.5 1.2,5.5" fill="var(--ecolor)" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+              <!-- Body pattern lines -->
+              <line x1="3" y1="9" x2="17" y2="9" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+              <line x1="2.5" y1="12" x2="17.5" y2="12" stroke="rgba(255,255,255,0.1)" stroke-width="0.8"/>
+              <!-- Eyes -->
+              <circle cx="7" cy="10" r="1.8" fill="rgba(0,0,0,0.6)"/>
+              <circle cx="13" cy="10" r="1.8" fill="rgba(0,0,0,0.6)"/>
+              <circle cx="7" cy="9.8" r="0.5" fill="rgba(255,255,255,0.4)"/>
+              <circle cx="13" cy="9.8" r="0.5" fill="rgba(255,255,255,0.4)"/>
+              <!-- Angry grimace mouth -->
+              <path d="M7 14 L9 13.5 L11 14 L13 13.5" fill="none" stroke="rgba(0,0,0,0.5)" stroke-width="0.8" stroke-linecap="round"/>
             </svg>
           {:else if enemy.type === 'rusher'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
-              <polygon points="1,10 8,3 14,3 20,10 14,17 8,17" fill="var(--ecolor)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-              <line x1="1" y1="10" x2="6" y2="7" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-              <line x1="1" y1="10" x2="6" y2="13" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-              <circle cx="11" cy="9" r="1.2" fill="rgba(0,0,0,0.6)"/>
-              <circle cx="15" cy="9" r="1.2" fill="rgba(0,0,0,0.6)"/>
+              <!-- Speed lines trailing behind -->
+              <line x1="16" y1="6" x2="20" y2="6" stroke="rgba(255,255,255,0.2)" stroke-width="0.6" stroke-linecap="round"/>
+              <line x1="17" y1="10" x2="20" y2="10" stroke="rgba(255,255,255,0.25)" stroke-width="0.7" stroke-linecap="round"/>
+              <line x1="16" y1="14" x2="20" y2="14" stroke="rgba(255,255,255,0.2)" stroke-width="0.6" stroke-linecap="round"/>
+              <!-- Sharper chevron body -->
+              <polygon points="0,10 7,2 13,2 19,10 13,18 7,18" fill="var(--ecolor)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+              <!-- Jagged teeth at front -->
+              <path d="M0,10 L2,8.5 L1,10 L2,11.5 Z" fill="rgba(255,255,255,0.2)"/>
+              <line x1="0" y1="10" x2="3" y2="8" stroke="var(--ecolor)" stroke-width="0.6"/>
+              <line x1="0" y1="10" x2="3" y2="12" stroke="var(--ecolor)" stroke-width="0.6"/>
+              <!-- Leading edge highlights -->
+              <line x1="0" y1="10" x2="5" y2="6" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
+              <line x1="0" y1="10" x2="5" y2="14" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
+              <!-- Single large angry eye -->
+              <circle cx="10" cy="9" r="2.5" fill="rgba(0,0,0,0.7)"/>
+              <circle cx="10.5" cy="8.5" r="1.2" fill="rgba(255,100,100,0.5)"/>
+              <circle cx="10" cy="8.2" r="0.5" fill="rgba(255,255,255,0.6)"/>
+              <!-- Angry brow line above eye -->
+              <line x1="7.5" y1="6.5" x2="12.5" y2="5.5" stroke="rgba(0,0,0,0.4)" stroke-width="0.8" stroke-linecap="round"/>
             </svg>
           {:else if enemy.type === 'tank'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
-              <rect x="1" y="2" width="18" height="16" rx="3" ry="3" fill="var(--ecolor)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-              <line x1="1" y1="10" x2="19" y2="10" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
-              <rect x="3" y="4" width="5" height="3" rx="1" fill="rgba(0,0,0,0.3)"/>
-              <rect x="12" y="4" width="5" height="3" rx="1" fill="rgba(0,0,0,0.3)"/>
-              <circle cx="7" cy="7" r="1" fill="rgba(255,200,200,0.4)"/>
-              <circle cx="13" cy="7" r="1" fill="rgba(255,200,200,0.4)"/>
+              <!-- Armored rectangle body -->
+              <rect x="1" y="2" width="18" height="16" rx="3" ry="3" fill="var(--ecolor)" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+              <!-- Armor line (more prominent) -->
+              <line x1="1" y1="10" x2="19" y2="10" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+              <!-- Rivet dots at corners -->
+              <circle cx="3.5" cy="4.5" r="1" fill="rgba(255,255,255,0.25)"/>
+              <circle cx="16.5" cy="4.5" r="1" fill="rgba(255,255,255,0.25)"/>
+              <circle cx="3.5" cy="15.5" r="1" fill="rgba(255,255,255,0.25)"/>
+              <circle cx="16.5" cy="15.5" r="1" fill="rgba(255,255,255,0.25)"/>
+              <!-- Viewport slit instead of square eyes -->
+              <rect x="4" y="5" width="12" height="2.5" rx="1" fill="rgba(0,0,0,0.4)"/>
+              <rect x="5" y="5.5" width="10" height="1.5" rx="0.5" fill="rgba(255,200,200,0.2)"/>
+              <!-- Cross-hatch armor on lower half -->
+              <line x1="3" y1="12" x2="17" y2="16" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>
+              <line x1="3" y1="14" x2="17" y2="18" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>
+              <line x1="3" y1="16" x2="17" y2="12" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>
+              <line x1="3" y1="18" x2="17" y2="14" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>
+              <line x1="5" y1="11" x2="15" y2="11" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
             </svg>
           {:else if enemy.type === 'shielded'}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
-              <circle cx="10" cy="10" r="7" fill="var(--ecolor)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-              <circle cx="8" cy="9" r="1.3" fill="rgba(0,0,0,0.5)"/>
-              <circle cx="12" cy="9" r="1.3" fill="rgba(0,0,0,0.5)"/>
+              <circle cx="10" cy="10" r="7" fill="var(--ecolor)" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+              <!-- Flat eyebrows (determined expression) -->
+              <line x1="5.5" y1="7" x2="8.5" y2="7.5" stroke="rgba(0,0,0,0.5)" stroke-width="0.8" stroke-linecap="round"/>
+              <line x1="11.5" y1="7.5" x2="14.5" y2="7" stroke="rgba(0,0,0,0.5)" stroke-width="0.8" stroke-linecap="round"/>
+              <!-- Eyes -->
+              <circle cx="7.5" cy="9.5" r="1.5" fill="rgba(0,0,0,0.5)"/>
+              <circle cx="12.5" cy="9.5" r="1.5" fill="rgba(0,0,0,0.5)"/>
+              <circle cx="7.5" cy="9.3" r="0.5" fill="rgba(255,255,255,0.4)"/>
+              <circle cx="12.5" cy="9.3" r="0.5" fill="rgba(255,255,255,0.4)"/>
+              <!-- Small determined mouth -->
+              <path d="M8.5 13 L10 12.5 L11.5 13" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="0.7" stroke-linecap="round"/>
             </svg>
           {:else}
             <svg viewBox="0 0 20 20" width={enemy.size} height={enemy.size} class="enemy-svg">
@@ -834,7 +930,14 @@
 
     <!-- Wave announcement -->
     {#if waveAnnouncement}
-      <div class="wave-announce">WAVE {waveAnnouncement}</div>
+      <div class="wave-announce">
+        <span class="wave-announce-line-left"></span>
+        <div class="wave-announce-text">
+          <span class="wave-announce-title">WAVE {waveAnnouncement}</span>
+          <span class="wave-announce-sub">{waveHostileCount} HOSTILE{waveHostileCount !== 1 ? 'S' : ''}</span>
+        </div>
+        <span class="wave-announce-line-right"></span>
+      </div>
     {/if}
 
     <!-- Floating texts -->
@@ -888,6 +991,12 @@
         {/each}
       </div>
     {/if}
+  </div>
+
+  <!-- HUD bar between battlefield and grid -->
+  <div class="bf-grid-hud-bar">
+    <span class="hud-bar-title">GRIDFIRE</span>
+    <span class="hud-bar-wave">{gameStarted ? `WAVE ${bf.wave}` : ''}</span>
   </div>
 
   <!-- Separator line between battlefield and grid -->
@@ -1336,7 +1445,7 @@
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.05;
+    opacity: 0.08;
     background-image:
       radial-gradient(circle 1px, #ffffff 0.5px, transparent 1px);
     background-size: 60px 40px;
@@ -1347,7 +1456,7 @@
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.08;
+    opacity: 0.12;
     background-image:
       radial-gradient(circle 1.5px, #ffffff 0.8px, transparent 1px);
     background-size: 90px 55px;
@@ -1363,13 +1472,54 @@
     to { background-position: -60px 15px; }
   }
 
+  /* --- Background silhouettes for depth --- */
+  .bf-silhouettes {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bf-sil {
+    position: absolute;
+    bottom: 30%;
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .bf-sil-1 {
+    right: 10%;
+    width: 0;
+    height: 0;
+    border-left: 40px solid transparent;
+    border-right: 35px solid transparent;
+    border-bottom: 60px solid rgba(255, 255, 255, 0.04);
+    background: none;
+  }
+  .bf-sil-2 {
+    right: 25%;
+    width: 0;
+    height: 0;
+    border-left: 55px solid transparent;
+    border-right: 45px solid transparent;
+    border-bottom: 80px solid rgba(255, 255, 255, 0.03);
+    background: none;
+  }
+  .bf-sil-3 {
+    right: 50%;
+    width: 0;
+    height: 0;
+    border-left: 30px solid transparent;
+    border-right: 50px solid transparent;
+    border-bottom: 50px solid rgba(255, 255, 255, 0.035);
+    background: none;
+  }
+
   /* Lane view */
   .bf-lane { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
   .bf-ground {
     position: absolute; left: 0; right: 0; top: 70%;
-    height: 1px;
-    background: linear-gradient(90deg, var(--border), rgba(255,255,255,0.06), var(--border));
-    opacity: 0.5;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(255,102,68,0.15), rgba(255,255,255,0.1), rgba(68,204,255,0.12), rgba(255,255,255,0.06), transparent);
+    opacity: 0.7;
   }
 
   /* --- Canvas VFX overlay --- */
@@ -1385,13 +1535,35 @@
     position: absolute;
     transform: translate(-50%, -50%);
     z-index: 5;
+    animation: playerBreathe 3s ease-in-out infinite;
+  }
+  @keyframes playerBreathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.03); }
   }
   .player-svg {
     display: block;
     filter: drop-shadow(0 0 6px rgba(255, 102, 68, 0.3));
   }
+  /* Muzzle glow pulse */
+  .muzzle-glow {
+    animation: muzzlePulse 1.5s ease-in-out infinite;
+  }
+  @keyframes muzzlePulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+  }
+  /* Shield arc animations */
+  .shield-arc-1 { animation: shieldArcPulse 2.5s ease-in-out infinite 0s; }
+  .shield-arc-2 { animation: shieldArcPulse 2.5s ease-in-out infinite 0.4s; }
+  .shield-arc-3 { animation: shieldArcPulse 2.5s ease-in-out infinite 0.8s; }
+  @keyframes shieldArcPulse {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.5; }
+  }
+
   .player-hp-bar {
-    width: 40px;
+    width: 44px;
     height: 4px;
     background: var(--panel);
     border: 1px solid var(--border);
@@ -1407,12 +1579,19 @@
   }
   .player-hp-fill.low { background: var(--hp-red); }
 
-  /* Enemies */
+  /* =============================== ENEMIES =============================== */
+  /* Enemy bob animation */
+  @keyframes enemyBob {
+    0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+    50% { transform: translate(-50%, -50%) translateY(-3px); }
+  }
   .enemy {
     position: absolute;
     transform: translate(-50%, -50%);
     z-index: 3;
     transition: none;
+    animation: enemyBob var(--bob-speed, 2.2s) ease-in-out infinite;
+    animation-delay: var(--bob-offset, 0s);
   }
   .enemy.boss-enemy {
     z-index: 4;
@@ -1487,20 +1666,53 @@
     box-shadow: 0 0 8px var(--pcolor), 0 0 16px var(--pcolor);
   }
 
-  /* Wave announcement */
+  /* =============================== WAVE ANNOUNCEMENT =============================== */
   .wave-announce {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: var(--fs-3xl);
-    font-weight: bold;
-    color: var(--text);
-    text-shadow: 0 0 20px rgba(255, 102, 68, 0.5);
     z-index: 15;
     animation: waveIn 2s var(--ease-out) forwards;
     pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: var(--s4);
+    width: 90%;
+    max-width: 400px;
+  }
+  .wave-announce-line-left,
+  .wave-announce-line-right {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 102, 68, 0.6));
+  }
+  .wave-announce-line-right {
+    background: linear-gradient(90deg, rgba(255, 102, 68, 0.6), transparent);
+  }
+  .wave-announce-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .wave-announce-title {
+    font-size: var(--fs-3xl);
+    font-weight: bold;
+    color: var(--text);
+    text-shadow:
+      0 0 20px rgba(255, 102, 68, 0.6),
+      0 0 40px rgba(255, 102, 68, 0.3),
+      0 0 60px rgba(255, 102, 68, 0.15);
     letter-spacing: 4px;
+  }
+  .wave-announce-sub {
+    font-size: var(--fs-sm);
+    color: var(--fire);
+    letter-spacing: 3px;
+    opacity: 0.8;
+    text-shadow: 0 0 10px rgba(255, 102, 68, 0.5);
   }
   @keyframes waveIn {
     0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
@@ -1548,6 +1760,30 @@
     display: block;
   }
 
+  /* =============================== HUD BAR =============================== */
+  .bf-grid-hud-bar {
+    height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--s3);
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .hud-bar-title {
+    font-size: 9px;
+    color: var(--text-dark);
+    letter-spacing: 3px;
+    font-weight: bold;
+  }
+  .hud-bar-wave {
+    font-size: 9px;
+    color: var(--text-dark);
+    letter-spacing: 2px;
+  }
+
   /* =============================== SEPARATOR =============================== */
   .bf-grid-separator {
     height: 2px;
@@ -1570,24 +1806,68 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     background:
-      repeating-radial-gradient(circle at center, rgba(255, 255, 255, 0.04) 0px, rgba(255, 255, 255, 0.04) 1px, transparent 1px, transparent 20px),
+      /* Hex-grid pattern using conic gradients */
+      repeating-conic-gradient(
+        from 30deg at 50% 50%,
+        rgba(255, 255, 255, 0.02) 0deg 60deg,
+        transparent 60deg 120deg
+      ),
+      repeating-conic-gradient(
+        from 0deg at calc(50% + 18px) calc(50% + 10px),
+        rgba(255, 255, 255, 0.015) 0deg 60deg,
+        transparent 60deg 120deg
+      ),
       radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.03) 0%, transparent 60%),
       var(--bg);
+    background-size: 36px 20px, 36px 20px, 100% 100%, 100% 100%;
     padding: var(--s3);
     border-top: 1px solid var(--border);
     transition: box-shadow 0.4s ease, opacity 0.15s ease, border-color 0.3s ease;
+    /* Subtle always-on inner glow */
+    box-shadow: inset 0 0 40px rgba(255, 255, 255, 0.02);
+    animation: gridIdleGlow 4s ease-in-out infinite;
   }
+  @keyframes gridIdleGlow {
+    0%, 100% { box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.015); }
+    50% { box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.04); }
+  }
+  /* Corner bracket pseudo-elements */
+  .grid-area::before,
+  .grid-area::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: rgba(255, 255, 255, 0.12);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .grid-area::before {
+    top: 8px;
+    left: 8px;
+    border-width: 2px 0 0 2px;
+  }
+  .grid-area::after {
+    bottom: 8px;
+    right: 8px;
+    border-width: 0 2px 2px 0;
+  }
+
   .grid-area.combo-glow {
     box-shadow:
       inset 0 0 30px color-mix(in srgb, var(--glow-color, #ffffff) 20%, transparent),
       inset 0 0 60px color-mix(in srgb, var(--glow-color, #ffffff) 8%, transparent);
+    animation: none;
   }
   .grid-area.combo-gold-glow {
     box-shadow:
       inset 0 0 30px rgba(255, 204, 0, 0.25),
       inset 0 0 60px rgba(255, 204, 0, 0.1);
     border-color: rgba(255, 204, 0, 0.5);
+    animation: none;
   }
   .grid-area.grid-jitter {
     animation: gridJitterAnim 0.2s ease-out;
@@ -1608,6 +1888,7 @@
     box-shadow:
       inset 0 0 20px color-mix(in srgb, var(--pulse-color, #ffffff) 30%, transparent),
       0 0 15px color-mix(in srgb, var(--pulse-color, #ffffff) 20%, transparent);
+    animation: none;
   }
 
   .grid {
@@ -1637,10 +1918,10 @@
     100% { opacity: 0; }
   }
 
-  /* Tile */
+  /* =============================== TILE =============================== */
   .tile {
     position: relative;
-    border-radius: 8px;
+    border-radius: 10px;
     border: 2px solid transparent;
     display: flex;
     align-items: center;
@@ -1654,35 +1935,103 @@
       opacity 0.15s ease,
       background 0.15s ease;
     -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
   }
   .tile:active:not(:disabled) {
     transform: scale(0.9);
   }
 
-  /* Element colors — crisper borders, inner glow, more opaque backgrounds */
+  /* Element colors — crisper borders, inner glow, more opaque backgrounds + drop shadow */
   .tile.fire {
     background: var(--fire-dim);
     color: var(--fire);
     border-color: rgba(255, 102, 68, 0.4);
-    box-shadow: inset 0 0 8px rgba(255, 102, 68, 0.1);
+    box-shadow: inset 0 0 8px rgba(255, 102, 68, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3);
   }
   .tile.ice {
     background: var(--ice-dim);
     color: var(--ice);
     border-color: rgba(68, 204, 255, 0.4);
-    box-shadow: inset 0 0 8px rgba(68, 204, 255, 0.1);
+    box-shadow: inset 0 0 8px rgba(68, 204, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3);
   }
   .tile.lightning {
     background: var(--lightning-dim);
     color: var(--lightning);
     border-color: rgba(255, 221, 34, 0.4);
-    box-shadow: inset 0 0 8px rgba(255, 221, 34, 0.1);
+    box-shadow: inset 0 0 8px rgba(255, 221, 34, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3);
   }
   .tile.kinetic {
     background: var(--kinetic-dim);
     color: var(--kinetic);
     border-color: rgba(221, 153, 255, 0.4);
-    box-shadow: inset 0 0 8px rgba(221, 153, 255, 0.1);
+    box-shadow: inset 0 0 8px rgba(221, 153, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Tile inner texture patterns via ::before pseudo-elements */
+  .tile.fire::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 3px,
+      currentColor 3px,
+      currentColor 4px
+    );
+    border-radius: 8px;
+  }
+  .tile.ice::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 4px,
+      currentColor 4px,
+      currentColor 5px
+    );
+    border-radius: 8px;
+  }
+  .tile.lightning::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        transparent,
+        transparent 3px,
+        currentColor 3px,
+        currentColor 4px
+      ),
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 3px,
+        currentColor 3px,
+        currentColor 4px
+      );
+    border-radius: 8px;
+  }
+  .tile.kinetic::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at center, transparent 4px, currentColor 4px, currentColor 5px, transparent 5px),
+      radial-gradient(circle at center, transparent 10px, currentColor 10px, currentColor 11px, transparent 11px),
+      radial-gradient(circle at center, transparent 16px, currentColor 16px, currentColor 17px, transparent 17px);
+    border-radius: 8px;
   }
 
   .tile-icon {
@@ -1692,6 +2041,8 @@
   .tile-icon-svg {
     pointer-events: none;
     filter: drop-shadow(0 0 4px currentColor);
+    position: relative;
+    z-index: 1;
   }
 
   /* Selected tile — sharper white border, stronger glow */
