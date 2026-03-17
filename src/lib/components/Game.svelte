@@ -675,8 +675,32 @@
 
 <div class="game" class:shaking class:boss-flash={bossFlash}>
 
+  <!-- SPLASH SCREEN -->
+  {#if splashActive}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="splash-screen" class:splash-fading={splashFading} onclick={skipSplash}>
+      <div class="splash-glow"></div>
+      <div class="splash-brand">
+        {#if splashLine1}
+          <p class="splash-studio" class:splash-visible={splashLine1}>adarkfable</p>
+        {/if}
+        {#if splashLine2}
+          <p class="splash-or" class:splash-visible={splashLine2}>or</p>
+        {/if}
+        {#if splashLine3}
+          <p class="splash-tale" class:splash-visible={splashLine3}>a cautionary tale</p>
+        {/if}
+        {#if splashLine4}
+          <div class="splash-divider" class:splash-visible={splashLine4}></div>
+          <p class="splash-presents" class:splash-visible={splashLine4}>presents</p>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   <!-- TITLE SCREEN OVERLAY -->
-  {#if !gameStarted}
+  {#if !gameStarted && !splashActive}
     <div class="title-overlay">
       <div class="title-content">
         <h1 class="title-logo">GRIDFIRE</h1>
