@@ -5,6 +5,21 @@
   import { getHighScores, saveHighScores } from '$lib/game/HighScores.js';
   import audio from '$lib/game/Audio.js';
 
+  // --- Splash state ---
+  let splashActive = $state(true);
+  let splashLine1 = $state(false);
+  let splashLine2 = $state(false);
+  let splashLine3 = $state(false);
+  let splashLine4 = $state(false);
+  let splashFading = $state(false);
+
+  function skipSplash() {
+    if (!splashFading) {
+      splashFading = true;
+      setTimeout(() => { splashActive = false; }, 400);
+    }
+  }
+
   // --- Core state ---
   let grid = $state(createGrid());
   let bf = $state(createBattlefield());
