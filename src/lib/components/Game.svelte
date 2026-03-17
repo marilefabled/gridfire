@@ -1243,6 +1243,81 @@
 </div>
 
 <style>
+  /* =============================== SPLASH SCREEN =============================== */
+  .splash-screen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    cursor: pointer;
+    transition: opacity 0.4s ease-out;
+  }
+  .splash-fading { opacity: 0; }
+  .splash-glow {
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+    pointer-events: none;
+    animation: splashBreathe 4s ease-in-out infinite;
+  }
+  @keyframes splashBreathe {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+  .splash-brand {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+  }
+  .splash-studio, .splash-or, .splash-tale, .splash-presents, .splash-divider {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+  }
+  .splash-visible { opacity: 1; transform: translateY(0); }
+  .splash-studio {
+    font-size: 36px;
+    color: #ffffff;
+    letter-spacing: 8px;
+    font-weight: normal;
+    text-transform: lowercase;
+    font-family: inherit;
+    text-shadow: 0 0 30px rgba(255,255,255,0.1);
+  }
+  .splash-or {
+    font-size: 13px;
+    color: #555;
+    letter-spacing: 6px;
+  }
+  .splash-tale {
+    font-size: 28px;
+    color: #888;
+    letter-spacing: 3px;
+    font-style: italic;
+    font-weight: normal;
+    text-transform: lowercase;
+  }
+  .splash-divider {
+    width: 40px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #444, transparent);
+    margin: 8px 0;
+  }
+  .splash-presents {
+    font-size: 14px;
+    color: #555;
+    letter-spacing: 6px;
+    text-transform: lowercase;
+  }
+
   /* =============================== LAYOUT =============================== */
   .game {
     width: 100%;
