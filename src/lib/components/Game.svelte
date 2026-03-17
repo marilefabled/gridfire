@@ -602,6 +602,14 @@
   // --- Lifecycle ---
   onMount(() => {
     highScores = getHighScores();
+
+    // Splash timers
+    setTimeout(() => splashLine1 = true, 400);
+    setTimeout(() => splashLine2 = true, 1400);
+    setTimeout(() => splashLine3 = true, 2400);
+    setTimeout(() => splashLine4 = true, 3400);
+    setTimeout(() => skipSplash(), 5200);
+
     return () => {
       if (animFrame) cancelAnimationFrame(animFrame);
     };
