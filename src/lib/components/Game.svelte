@@ -501,6 +501,15 @@
 
   // --- Keyboard ---
   function handleKeydown(e) {
+    // Splash skip with space/enter
+    if (splashActive) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        skipSplash();
+      }
+      return;
+    }
+
     if (bf.gameOver || processing || perkPhase) return;
 
     // Allow starting the game with Enter from title screen
